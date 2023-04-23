@@ -59,7 +59,11 @@ export interface DeleteQueryParams<TCol, TRow> {
 }
 
 import { genPostgresAPI } from "./gen-api";
+import { runPostgresMigrations } from "./migrations";
+import { expect, expectOne } from "./utils";
 
 export {
-  genPostgresAPI
+  genPostgresAPI,
+  runPostgresMigrations,
+  expect, expectOne
 };
