@@ -185,8 +185,8 @@ export function parseSelectQuery<TCol, TRow>(query: SelectQueryParams<TCol, TRow
 
   for (let i = 0; i < colsCount; i++) {
     const col = query.cols[i];
-    if (col !== "*") columns += `${col}, `;
-    else columns += `"${col}", `;
+    if (col !== "*") columns += `"${col}", `;
+    else columns += "*, ";
   }
   columns = columns.slice(0, -2);
 
