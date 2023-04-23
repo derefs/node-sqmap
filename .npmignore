@@ -1,0 +1,13 @@
+/node_modules
+/dist/tests/
+.editorconfig
+.env
+.env.development
+.env*
+.eslintignore
+.eslintrc.rc
+.gitignore
+index.ts
+tsconfig.json
+package-lock.json
+sqmap*.tgz
