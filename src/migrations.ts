@@ -63,7 +63,5 @@ export const runPostgresMigrations = async (client: PoolClient, config: Migratio
   } catch (error) {
     await client.query("ROLLBACK");
     throw error;
-  } finally {
-    client.release();
   }
 };
