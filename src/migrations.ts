@@ -7,7 +7,8 @@ export interface Migration {
 }
 
 export interface MigrationConfig {
-  table?: string;
+  table?:                string;
+  initialMigrationName?: string;
 }
 
 type MigrationTableCol = "id" | "created" | "name";
@@ -25,6 +26,7 @@ export const runPostgresMigrations = async (client: PoolClient, config: Migratio
     "created" TIMESTAMP DEFAULT NOW(),
     "name"    TEXT UNIQUE
   );`;
+  const initialMigrationName = config.initialMigrationName || "init_db";
   try {
     let migrations: MigrationTableRow[] = [];
     try {
@@ -34,7 +36,7 @@ export const runPostgresMigrations = async (client: PoolClient, config: Migratio
         await client.query(initMigrationsTable, []);
         await Migration.insert(client, {
           cols: ["name"],
-          rows: [{ name: "init_db" }]
+          rows: [{ name: initialMigrationName }]
         });
         migrations = (await Migration.select(client, { cols: ["*"], })).rows;
       } else {

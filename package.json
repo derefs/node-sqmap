@@ -1,6 +1,6 @@
 {
   "name": "sqmap",
-  "version": "0.2.0",
+  "version": "0.2.2",
   "description": "A lightweight and easy to use micro ORM for Node/TypeScript.",
   "author": "Derefs Software SRL",
   "license": "MIT",
@@ -13,7 +13,8 @@
   ],
   "scripts": {
     "build": "rm -rf ./dist && tsc -p .",
-    "test": "node --experimental-specifier-resolution=node --loader ts-node/esm ./src/tests/index.ts"
+    "test": "node --experimental-specifier-resolution=node --loader ts-node/esm ./src/tests/index.ts",
+    "publish": "npm run build && npm publish"
   },
   "repository": {
     "type": "git",

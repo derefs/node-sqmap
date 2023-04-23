@@ -183,7 +183,11 @@ export function parseSelectQuery<TCol, TRow>(query: SelectQueryParams<TCol, TRow
   const colsCount = query.cols.length;
   if (colsCount === 0) throw new Error("No columns provided for the insert statement!");
 
-  for (let i = 0; i < colsCount; i++) columns += `"${query.cols[i]}", `;
+  for (let i = 0; i < colsCount; i++) {
+    const col = query.cols[i];
+    if (col !== "*") columns += `${col}, `;
+    else columns += `"${col}", `;
+  }
   columns = columns.slice(0, -2);
 
   let paramIndex: number = 1;
