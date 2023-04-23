@@ -30,9 +30,10 @@ export interface SQMPostgresAPI<TCol, TRow extends QueryResultRow> {
   sql:    (client: PoolClient, query: string, params: any[])         => Promise<QueryResult<TRow | any>>;
 }
 
-export function genPostgresAPI<TCol, TRow extends QueryResultRow>(tableName: string): SQMPostgresAPI<TCol, TRow> {
+export function genPostgresAPI<TCol, TRow extends QueryResultRow>(tableName: string, useDebug?: DebugOptions): SQMPostgresAPI<TCol, TRow> {
   return {
     insert: (client: PoolClient, query: InsertQueryParams<TCol, TRow>): Promise<QueryResult<TRow>> => {
+      if (useDebug) query.debug = query.debug ?? useDebug;
       if (query.debug?.enable) (query.debug as any)._startTime = perf.performance.now();
       const parsedQuery = QueryParser.parseInsertQuery<TCol, TRow>(query);
 
@@ -51,6 +52,7 @@ export function genPostgresAPI<TCol, TRow extends QueryResultRow>(tableName: str
       return client.query(finalQuery, parsedQuery.params);
     },
     select: (client: PoolClient, query: SelectQueryParams<TCol, TRow>): Promise<QueryResult<TRow>> => {
+      if (useDebug) query.debug = query.debug ?? useDebug;
       if (query.debug?.enable) (query.debug as any)._startTime = perf.performance.now();
       const parsedQuery = QueryParser.parseSelectQuery<TCol, TRow>(query);
 
@@ -89,6 +91,7 @@ export function genPostgresAPI<TCol, TRow extends QueryResultRow>(tableName: str
       return client.query(finalQuery, parsedQuery.params);
     },
     update: (client: PoolClient, query: UpdateQueryParams<TCol, TRow>): Promise<QueryResult<TRow>> => {
+      if (useDebug) query.debug = query.debug ?? useDebug;
       if (query.debug?.enable) (query.debug as any)._startTime = perf.performance.now();
       const parsedQuery = QueryParser.parseUpdateQuery<TCol, TRow>(query);
 
@@ -126,6 +129,7 @@ export function genPostgresAPI<TCol, TRow extends QueryResultRow>(tableName: str
       return client.query(finalQuery, parsedQuery.params);
     },
     delete: (client: PoolClient, query: DeleteQueryParams<TCol, TRow>): Promise<QueryResult<TRow>> => {
+      if (useDebug) query.debug = query.debug ?? useDebug;
       if (query.debug?.enable) (query.debug as any)._startTime = perf.performance.now();
       const parsedQuery = QueryParser.parseDeleteQuery<TCol, TRow>(query);
 
