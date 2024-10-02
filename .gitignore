@@ -4,3 +4,4 @@
 .env.production
 .env*
 sqmap*.tgz
+test-db.sqlite

@@ -23,6 +23,10 @@ export interface InsertQueryParams<TCol, TRow> {
   rows:    TRow[];
   return?: TCol[] | "*";
   debug?:  DebugOptions;
+  /**
+   * PostgreSQL only, defaults to `public`.
+   */
+  schema?: string;
 }
 
 export interface SelectQueryParams<TCol, TRow> {
@@ -35,6 +39,10 @@ export interface SelectQueryParams<TCol, TRow> {
   order?:   { by: TCol, type: OrderType };
   shift?:   { limit: number | null, offset: number | null };
   debug?:   DebugOptions;
+  /**
+   * PostgreSQL only, defaults to `public`.
+   */
+  schema?: string;
 }
 
 export interface UpdateQueryParams<TCol, TRow> {
@@ -46,6 +54,10 @@ export interface UpdateQueryParams<TCol, TRow> {
   between?: BetweenOp;
   return?:  TCol[] | "*";
   debug?:   DebugOptions;
+  /**
+   * PostgreSQL only, defaults to `public`.
+   */
+  schema?: string;
 }
 
 export interface DeleteQueryParams<TCol, TRow> {
@@ -56,11 +68,15 @@ export interface DeleteQueryParams<TCol, TRow> {
   between?: BetweenOp;
   return?: TCol[] | "*";
   debug?:  DebugOptions;
+  /**
+   * PostgreSQL only, defaults to `public`.
+   */
+  schema?: string;
 }
 
-import { genPostgresAPI } from "./gen-api";
-import { runPostgresMigrations } from "./migrations";
-import { expect, expectOne } from "./utils";
+import { genPostgresAPI } from "./postgres-gen-api.js";
+import { runPostgresMigrations } from "./postgres-migrations.js";
+import { expect, expectOne } from "./utils.js";
 
 export {
   genPostgresAPI,

@@ -1,5 +1,5 @@
 import { PoolClient } from "pg";
-import { genPostgresAPI } from "./index";
+import { genPostgresAPI } from "./index.js";
 
 export interface Migration {
   name: string;
@@ -9,9 +9,8 @@ export interface Migration {
 export interface MigrationConfig {
   table?:                string;
   initialMigrationName?: string;
+  schema?:               string;
 }
-
-type MigrationTableCol = "id" | "created" | "name";
 
 interface MigrationTableRow {
   id?:      number;
@@ -20,8 +19,9 @@ interface MigrationTableRow {
 }
 
 export const runPostgresMigrations = async (client: PoolClient, config: MigrationConfig, allMigrations: Migration[]): Promise<void> => {
-  const Migration = genPostgresAPI<MigrationTableCol, MigrationTableRow>(config.table || "migrations");
-  const initMigrationsTable = /*sql*/`CREATE TABLE IF NOT EXISTS "${config.table || "migrations"}" (
+  const schema = config.schema || "public";
+  const Migration = genPostgresAPI<MigrationTableRow>(config.table || "migrations");
+  const initMigrationsTable = /*sql*/`CREATE TABLE IF NOT EXISTS "${schema}"."${config.table || "sqmap_migrations"}" (
     "id"      INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     "created" TIMESTAMP DEFAULT NOW(),
     "name"    TEXT UNIQUE
@@ -30,15 +30,16 @@ export const runPostgresMigrations = async (client: PoolClient, config: Migratio
   try {
     let migrations: MigrationTableRow[] = [];
     try {
-      migrations = (await Migration.select(client, { cols: ["*"], })).rows;
+      migrations = (await Migration.select(client, { cols: ["*"], schema })).rows;
     } catch (error: any) {
       if (error.code === "42P01") {
         await client.query(initMigrationsTable, []);
         await Migration.insert(client, {
           cols: ["name"],
-          rows: [{ name: initialMigrationName }]
+          rows: [{ name: initialMigrationName }],
+          schema
         });
-        migrations = (await Migration.select(client, { cols: ["*"], })).rows;
+        migrations = (await Migration.select(client, { cols: ["*"], schema })).rows;
       } else {
         throw error;
       }
@@ -53,7 +54,8 @@ export const runPostgresMigrations = async (client: PoolClient, config: Migratio
         await migration.exec(client);
         await Migration.insert(client, {
           cols: ["name"],
-          rows: [{ name: migration.name }]
+          rows: [{ name: migration.name }],
+          schema
         });
         await client.query("COMMIT");
         activeMigrations.push(migration.name);

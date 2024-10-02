@@ -1,7 +1,7 @@
 import {
   CompOp, BetweenOp, BetweenExtOp, InOp, LikeOp,
   InsertQueryParams, SelectQueryParams, UpdateQueryParams, DeleteQueryParams
-} from "./index";
+} from "./index.js";
 
 export interface ParsedInsertQuery {
   columns:   string;
@@ -10,7 +10,12 @@ export interface ParsedInsertQuery {
   params:    any[];
 }
 
-export function parseInsertQuery<TCol, TRow>(query: InsertQueryParams<TCol, TRow>): ParsedInsertQuery {
+interface ParamsFormat {
+  prefix:      string;
+  appendIndex: boolean;
+}
+
+export function parseInsertQuery<TCol, TRow>(query: InsertQueryParams<TCol, TRow>, paramsFormat: ParamsFormat): ParsedInsertQuery {
   let columns:   string = "(";
   let values:    string = "(";
   let returning: string | null = null;
@@ -30,7 +35,8 @@ export function parseInsertQuery<TCol, TRow>(query: InsertQueryParams<TCol, TRow
     const row = query.rows[i];
     for (let j = 0; j < colsCount; j++) {
       const col = query.cols[j];
-      values += `$${paramIndex}, `;
+      if (paramsFormat.appendIndex) values += `${paramsFormat.prefix}${paramIndex}, `;
+      else values += `${paramsFormat.prefix}, `;
       paramIndex++;
       params.push((row as any)[col]);
     }
@@ -56,7 +62,7 @@ interface WhereClauseResult { whereClause: string | null; paramIndex: number; }
 function resolveWhereClause<TCol, TRow>(
   WHERE: [target: TRow, op?: CompOp, between?: BetweenOp] |
          Array<[col: TCol, op: CompOp, value: any] | BetweenExtOp>,
-  paramIndex: number, params: any[]
+  paramIndex: number, params: any[], paramsFormat: ParamsFormat
 ): WhereClauseResult {
   let whereClause: string | null = null;
   if (typeof WHERE[0] === "object") {
@@ -66,7 +72,8 @@ function resolveWhereClause<TCol, TRow>(
     const between = WHERE[2] || "AND";
     whereClause = "";
     for (const [key, value] of Object.entries(target as any)) {
-      whereClause += `"${key}"${op}$${paramIndex} ${between} `;
+      if (paramsFormat.appendIndex) whereClause += `"${key}"${op}${paramsFormat.prefix}${paramIndex} ${between} `;
+      else whereClause += `"${key}"${op}${paramsFormat.prefix} ${between} `;
       paramIndex++;
       params.push(value);
     }
@@ -78,7 +85,8 @@ function resolveWhereClause<TCol, TRow>(
       if (Array.isArray(token)) {
         const col = token[0];
         const op = token[1];
-        whereClause += ` "${col}"${op}$${paramIndex} `;
+        if (paramsFormat.appendIndex) whereClause += ` "${col}"${op}${paramsFormat.prefix}${paramIndex} `;
+        else whereClause += ` "${col}"${op}${paramsFormat.prefix} `;
         paramIndex++;
         params.push(token[2]);
       } else {
@@ -93,7 +101,7 @@ function resolveWhereClause<TCol, TRow>(
 interface InOpResult { inOp: string | null; paramIndex: number; }
 function resolveInOperator<TCol, TRow>(
   IN: Array<[col: TCol, op: InOp, value: number[] | string[]] | BetweenExtOp>,
-  paramIndex: number, params: any[]
+  paramIndex: number, params: any[], paramsFormat: ParamsFormat
 ): InOpResult {
   let inOp: string | null = "";
   for (let i = 0; i < IN.length; i++) {
@@ -105,7 +113,8 @@ function resolveInOperator<TCol, TRow>(
       inOp += `"${col}" ${op} (`;
       for (let j = 0; j < values.length; j++) {
         const value = values[j];
-        inOp += `$${paramIndex}, `;
+        if (paramsFormat.appendIndex) inOp += `${paramsFormat.prefix}${paramIndex}, `;
+        else inOp += `${paramsFormat.prefix}, `;
         paramIndex++;
         params.push(value);
       }
@@ -122,7 +131,7 @@ function resolveInOperator<TCol, TRow>(
 interface LikeOpResult { likeOp: string | null; paramIndex: number; }
 function resolveLikeOperator<TCol, TRow>(
   LIKE: Array<[col: TCol, op: LikeOp, value: string] | BetweenExtOp>,
-  paramIndex: number, params: any[]
+  paramIndex: number, params: any[], paramsFormat: ParamsFormat
 ): LikeOpResult {
   let likeOp: string | null = "";
   for (let i = 0; i < LIKE.length; i++) {
@@ -130,7 +139,8 @@ function resolveLikeOperator<TCol, TRow>(
     if (Array.isArray(token)) {
       const col = token[0];
       const op = token[1];
-      likeOp += `"${col}" ${op} $${paramIndex} `;
+      if (paramsFormat.appendIndex) likeOp += `"${col}" ${op} ${paramsFormat.prefix}${paramIndex} `;
+      else likeOp += `"${col}" ${op} ${paramsFormat.prefix} `;
       paramIndex++;
       params.push(token[2]);
     } else {
@@ -144,18 +154,20 @@ function resolveLikeOperator<TCol, TRow>(
 interface ShiftResult { shift: string | null; paramIndex: number; }
 function resolveShift<TCol, TRow>(
   SHIFT: { limit: number | null, offset: number | null },
-  paramIndex: number, params: any[]
+  paramIndex: number, params: any[], paramsFormat: ParamsFormat
 ): ShiftResult {
   let shift: string | null = "";
   let char = "";
   if (SHIFT.limit !== null && SHIFT.limit >= 0) {
-    shift += `LIMIT $${paramIndex}`;
+    if (paramsFormat.appendIndex) shift += `LIMIT ${paramsFormat.prefix}${paramIndex}`;
+    else shift += `LIMIT ${paramsFormat.prefix}`;
     paramIndex++;
     params.push(SHIFT.limit);
     char = " ";
   }
   if (SHIFT.offset !== null && SHIFT.offset >= 0) {
-    shift += `${char}OFFSET $${paramIndex}`;
+    if (paramsFormat.appendIndex) shift += `${char}OFFSET ${paramsFormat.prefix}${paramIndex}`;
+    else shift += `${char}OFFSET ${paramsFormat.prefix}`;
     params.push(SHIFT.offset);
     paramIndex++;
   }
@@ -171,7 +183,7 @@ export interface ParsedSelectQuery {
   shift:       string | null;
   params:      any[];
 }
-export function parseSelectQuery<TCol, TRow>(query: SelectQueryParams<TCol, TRow>): ParsedSelectQuery {
+export function parseSelectQuery<TCol, TRow>(query: SelectQueryParams<TCol, TRow>, paramsFormat: ParamsFormat): ParsedSelectQuery {
   let columns:     string = "";
   let whereClause: string | null = null;
   let inOp:        string | null = null;
@@ -192,23 +204,23 @@ export function parseSelectQuery<TCol, TRow>(query: SelectQueryParams<TCol, TRow
 
   let paramIndex: number = 1;
   if (query.where) {
-    const whereClauseResult = resolveWhereClause<TCol, TRow>(query.where, paramIndex, params);
+    const whereClauseResult = resolveWhereClause<TCol, TRow>(query.where, paramIndex, params, paramsFormat);
     whereClause = whereClauseResult.whereClause;
     paramIndex  = whereClauseResult.paramIndex;
   }
   if (query.in) {
-    const inOpResult = resolveInOperator<TCol, TRow>(query.in, paramIndex, params);
+    const inOpResult = resolveInOperator<TCol, TRow>(query.in, paramIndex, params, paramsFormat);
     inOp       = inOpResult.inOp;
     paramIndex = inOpResult.paramIndex;
   }
   if (query.like) {
-    const likeOpResult = resolveLikeOperator<TCol, TRow>(query.like, paramIndex, params);
+    const likeOpResult = resolveLikeOperator<TCol, TRow>(query.like, paramIndex, params, paramsFormat);
     likeOp     = likeOpResult.likeOp;
     paramIndex = likeOpResult.paramIndex;
   }
   if (query.order) order = `ORDER BY "${query.order.by}" ${query.order.type}`;
   if (query.shift) {
-    const shiftResult = resolveShift<TCol, TRow>(query.shift, paramIndex, params);
+    const shiftResult = resolveShift<TCol, TRow>(query.shift, paramIndex, params, paramsFormat);
     shift      = shiftResult.shift;
     paramIndex = shiftResult.paramIndex;
   }
@@ -224,7 +236,7 @@ export interface ParsedUpdateQuery {
   returning:   string | null;
   params:      any[];
 }
-export function parseUpdateQuery<TCol, TRow>(query: UpdateQueryParams<TCol, TRow>): ParsedUpdateQuery {
+export function parseUpdateQuery<TCol, TRow>(query: UpdateQueryParams<TCol, TRow>, paramsFormat: ParamsFormat): ParsedUpdateQuery {
   let colValPairs: string = "";
   let whereClause: string | null = null;
   let inOp:        string | null = null;
@@ -244,17 +256,17 @@ export function parseUpdateQuery<TCol, TRow>(query: UpdateQueryParams<TCol, TRow
   colValPairs = colValPairs.slice(0, -2);
 
   if (query.where) {
-    const whereClauseResult = resolveWhereClause<TCol, TRow>(query.where, paramIndex, params);
+    const whereClauseResult = resolveWhereClause<TCol, TRow>(query.where, paramIndex, params, paramsFormat);
     whereClause = whereClauseResult.whereClause;
     paramIndex  = whereClauseResult.paramIndex;
   }
   if (query.in) {
-    const inOpResult = resolveInOperator<TCol, TRow>(query.in, paramIndex, params);
+    const inOpResult = resolveInOperator<TCol, TRow>(query.in, paramIndex, params, paramsFormat);
     inOp       = inOpResult.inOp;
     paramIndex = inOpResult.paramIndex;
   }
   if (query.like) {
-    const likeOpResult = resolveLikeOperator<TCol, TRow>(query.like, paramIndex, params);
+    const likeOpResult = resolveLikeOperator<TCol, TRow>(query.like, paramIndex, params, paramsFormat);
     likeOp     = likeOpResult.likeOp;
     paramIndex = likeOpResult.paramIndex;
   }
@@ -279,7 +291,7 @@ export interface ParsedDeleteQuery {
   returning:   string | null;
   params:      any[];
 }
-export function parseDeleteQuery<TCol, TRow>(query: DeleteQueryParams<TCol, TRow>): ParsedDeleteQuery {
+export function parseDeleteQuery<TCol, TRow>(query: DeleteQueryParams<TCol, TRow>, paramsFormat: ParamsFormat): ParsedDeleteQuery {
   let whereClause: string | null = null;
   let inOp:        string | null = null;
   let likeOp:      string | null = null;
@@ -290,17 +302,17 @@ export function parseDeleteQuery<TCol, TRow>(query: DeleteQueryParams<TCol, TRow
 
   let paramIndex: number = 1;
   if (query.where) {
-    const whereClauseResult = resolveWhereClause<TCol, TRow>(query.where, paramIndex, params);
+    const whereClauseResult = resolveWhereClause<TCol, TRow>(query.where, paramIndex, params, paramsFormat);
     whereClause = whereClauseResult.whereClause;
     paramIndex  = whereClauseResult.paramIndex;
   }
   if (query.in) {
-    const inOpResult = resolveInOperator<TCol, TRow>(query.in, paramIndex, params);
+    const inOpResult = resolveInOperator<TCol, TRow>(query.in, paramIndex, params, paramsFormat);
     inOp       = inOpResult.inOp;
     paramIndex = inOpResult.paramIndex;
   }
   if (query.like) {
-    const likeOpResult = resolveLikeOperator<TCol, TRow>(query.like, paramIndex, params);
+    const likeOpResult = resolveLikeOperator<TCol, TRow>(query.like, paramIndex, params, paramsFormat);
     likeOp     = likeOpResult.likeOp;
     paramIndex = likeOpResult.paramIndex;
   }
