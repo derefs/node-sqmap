@@ -6,14 +6,23 @@ import * as SQM from "../index";
 import * as TestModel from "./TestModel";
 
 (async function main() {
-  const insertQuery = TestModel.db.sqlInsert({
+  // const insertQuery = TestModel.db.sqlInsert({
+  //   cols: ["info", "status", "info"],
+  //   rows: [{
+  //     info: { subscription_plan: "basic" }
+  //   }],
+  //   return: "*",
+  // });
+  // console.log(insertQuery);
+  const test1 = "test1";
+  const selectQuery = TestModel.db.sqlSelect({
     cols: ["info", "status", "info"],
-    rows: [{
-      info: { subscription_plan: "basic" }
-    }],
-    return: "*",
+    where: [
+      ["email", "=", "test1@gmail.com"], "AND",
+      ["name", "!=", test1]
+    ]
   });
-  console.log(insertQuery);
+  console.log(selectQuery);
   // const MIGRATIONS = [{
   //     name: "create_table_users",
   //     exec: async (client: PoolClient) => {

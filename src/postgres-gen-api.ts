@@ -1,6 +1,6 @@
 import { PoolClient, QueryResult, QueryResultRow } from "pg";
 import perf from "perf_hooks";
-import { InsertQueryParams, SelectQueryParams,  UpdateQueryParams, DeleteQueryParams, DebugOptions, BetweenOp } from "./index.js";
+import { InsertQueryParams, SelectQueryParams,  UpdateQueryParams, DeleteQueryParams, DebugOptions, BetweenOp, SQLData, ExtractColsFromRow, Format, FORMATS } from "./index.js";
 import * as QueryParser from "./query-parser.js";
 
 const handleDebugOptions = (options: DebugOptions, finalQuery: string, params: any[]) => {
@@ -22,13 +22,9 @@ const handleDebugOptions = (options: DebugOptions, finalQuery: string, params: a
   if (options.inputs) options.inputs(finalQuery, params, (options as any)._totalTime);
 };
 
-export type ExtractColsFromRow<T> = {
-  [P in keyof T]: P
-}[keyof T];
-
-export interface SQLData {
-  query:  string;
-  params: any[];
+export interface DefaultValues {
+  schema?: string;
+  format?: Format;
 }
 
 export interface SQMPostgresAPI<TCol, TRow extends QueryResultRow> {
@@ -135,13 +131,16 @@ const buildDeleteQuery = (schema: string, tableName: string, parsedQuery: QueryP
   return finalQuery;
 };
 
-export function genPostgresAPI<TRow extends QueryResultRow>(tableName: string, useDebug?: DebugOptions): SQMPostgresAPI<ExtractColsFromRow<TRow>, TRow> {
+export function genPostgresAPI<TRow extends QueryResultRow>(tableName: string, defaultValues?: DefaultValues, useDebug?: DebugOptions): SQMPostgresAPI<ExtractColsFromRow<TRow>, TRow> {
+  const DEFAULT_SCHEMA = (defaultValues && defaultValues.schema) || DEFAULT_POSTGRES_SCHEMA;
+  const DEFAULT_FORMAT: Format = (defaultValues && defaultValues.format) || FORMATS.NODE_PG_POSTGRES;
+
   return {
     insert: (client: PoolClient, query: InsertQueryParams<ExtractColsFromRow<TRow>, TRow>): Promise<QueryResult<TRow>> => {
-      const schema = query.schema || DEFAULT_POSTGRES_SCHEMA;
+      const schema = query.schema || DEFAULT_SCHEMA;
       if (useDebug) query.debug = query.debug ?? useDebug;
       if (query.debug?.enable) (query.debug as any)._startTime = perf.performance.now();
-      const parsedQuery = QueryParser.parseInsertQuery<ExtractColsFromRow<TRow>, TRow>(query, { prefix: "$", appendIndex: true });
+      const parsedQuery = QueryParser.parseInsertQuery<ExtractColsFromRow<TRow>, TRow>(query, DEFAULT_FORMAT);
       let finalQuery = buildInsertQuery(schema, tableName, parsedQuery);
 
       if (query.debug?.enable) {
@@ -150,18 +149,17 @@ export function genPostgresAPI<TRow extends QueryResultRow>(tableName: string, u
         handleDebugOptions(query.debug, finalQuery, parsedQuery.params);
         if (query.debug?.dryRun) return {} as Promise<QueryResult<TRow>>;
       }
-
       return client.query(finalQuery, parsedQuery.params);
     },
     sqlInsert: (query: InsertQueryParams<ExtractColsFromRow<TRow>, TRow>): SQLData => {
-      const schema = query.schema || DEFAULT_POSTGRES_SCHEMA;
-      const parsedQuery = QueryParser.parseInsertQuery<ExtractColsFromRow<TRow>, TRow>(query, { prefix: "$", appendIndex: true });
+      const schema = query.schema || DEFAULT_SCHEMA;
+      const parsedQuery = QueryParser.parseInsertQuery<ExtractColsFromRow<TRow>, TRow>(query, DEFAULT_FORMAT);
       const finalQuery = buildInsertQuery(schema, tableName, parsedQuery);
       return { query: finalQuery, params: parsedQuery.params };
     },
 
     select: (client: PoolClient, query: SelectQueryParams<ExtractColsFromRow<TRow>, TRow>): Promise<QueryResult<TRow>> => {
-      const schema = query.schema || DEFAULT_POSTGRES_SCHEMA;
+      const schema = query.schema || DEFAULT_SCHEMA;
       if (useDebug) query.debug = query.debug ?? useDebug;
       if (query.debug?.enable) (query.debug as any)._startTime = perf.performance.now();
       const parsedQuery = QueryParser.parseSelectQuery<ExtractColsFromRow<TRow>, TRow>(query, { prefix: "$", appendIndex: true });
@@ -176,14 +174,14 @@ export function genPostgresAPI<TRow extends QueryResultRow>(tableName: string, u
       return client.query(finalQuery, parsedQuery.params);
     },
     sqlSelect: (query: SelectQueryParams<ExtractColsFromRow<TRow>, TRow>): SQLData => {
-      const schema = query.schema || DEFAULT_POSTGRES_SCHEMA;
+      const schema = query.schema || DEFAULT_SCHEMA;
       const parsedQuery = QueryParser.parseSelectQuery<ExtractColsFromRow<TRow>, TRow>(query, { prefix: "$", appendIndex: true });
       let finalQuery = buildSelectQuery(schema, tableName, parsedQuery, query.between);
       return { query: finalQuery, params: parsedQuery.params };
     },
 
     update: (client: PoolClient, query: UpdateQueryParams<ExtractColsFromRow<TRow>, TRow>): Promise<QueryResult<TRow>> => {
-      const schema = query.schema || DEFAULT_POSTGRES_SCHEMA;
+      const schema = query.schema || DEFAULT_SCHEMA;
       if (useDebug) query.debug = query.debug ?? useDebug;
       if (query.debug?.enable) (query.debug as any)._startTime = perf.performance.now();
       const parsedQuery = QueryParser.parseUpdateQuery<ExtractColsFromRow<TRow>, TRow>(query, { prefix: "$", appendIndex: true });
@@ -198,14 +196,14 @@ export function genPostgresAPI<TRow extends QueryResultRow>(tableName: string, u
       return client.query(finalQuery, parsedQuery.params);
     },
     sqlUpdate: (query: UpdateQueryParams<ExtractColsFromRow<TRow>, TRow>): SQLData => {
-      const schema = query.schema || DEFAULT_POSTGRES_SCHEMA;
+      const schema = query.schema || DEFAULT_SCHEMA;
       const parsedQuery = QueryParser.parseUpdateQuery<ExtractColsFromRow<TRow>, TRow>(query, { prefix: "$", appendIndex: true });
       let finalQuery = buildUpdateQuery(schema, tableName, parsedQuery, query.between);
       return { query: finalQuery, params: parsedQuery.params };
     },
 
     delete: (client: PoolClient, query: DeleteQueryParams<ExtractColsFromRow<TRow>, TRow>): Promise<QueryResult<TRow>> => {
-      const schema = query.schema || DEFAULT_POSTGRES_SCHEMA;
+      const schema = query.schema || DEFAULT_SCHEMA;
       if (useDebug) query.debug = query.debug ?? useDebug;
       if (query.debug?.enable) (query.debug as any)._startTime = perf.performance.now();
       const parsedQuery = QueryParser.parseDeleteQuery<ExtractColsFromRow<TRow>, TRow>(query, { prefix: "$", appendIndex: true });
@@ -220,7 +218,7 @@ export function genPostgresAPI<TRow extends QueryResultRow>(tableName: string, u
       return client.query(finalQuery, parsedQuery.params);
     },
     sqlDelete: (query: DeleteQueryParams<ExtractColsFromRow<TRow>, TRow>): SQLData => {
-      const schema = query.schema || DEFAULT_POSTGRES_SCHEMA;
+      const schema = query.schema || DEFAULT_SCHEMA;
       const parsedQuery = QueryParser.parseDeleteQuery<ExtractColsFromRow<TRow>, TRow>(query, { prefix: "$", appendIndex: true });
       let finalQuery = buildDeleteQuery(schema, tableName, parsedQuery, query.between);
       return { query: finalQuery, params: parsedQuery.params };

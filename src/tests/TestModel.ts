@@ -1,4 +1,4 @@
-import { genPostgresAPI } from "../index.js";
+import { FORMATS, genPostgresAPI } from "../index.js";
 
 export type Col = "id" | "created" | "status" | "name" | "username" | "email" | "info";
 
@@ -31,4 +31,4 @@ export const queries = {
 };
 
 // In order to get the proper type-checking you need to pass Col and Row as type parameters
-export const db = genPostgresAPI<Row>("users");
+export const db = genPostgresAPI<Row>("users", { format: FORMATS.NODE_PG_POSTGRES });

@@ -1,6 +1,7 @@
 import {
   CompOp, BetweenOp, BetweenExtOp, InOp, LikeOp,
-  InsertQueryParams, SelectQueryParams, UpdateQueryParams, DeleteQueryParams
+  InsertQueryParams, SelectQueryParams, UpdateQueryParams, DeleteQueryParams,
+  Format
 } from "./index.js";
 
 export interface ParsedInsertQuery {
@@ -15,7 +16,25 @@ interface ParamsFormat {
   appendIndex: boolean;
 }
 
-export function parseInsertQuery<TCol, TRow>(query: InsertQueryParams<TCol, TRow>, paramsFormat: ParamsFormat): ParsedInsertQuery {
+const initParamIndex = (format: Format): number => {
+  if (format.params.index === "from-1") return 1;
+  return 0;
+};
+
+const escapeName = (format: Format, name: string): string => {
+  return `${format.quotingChar}${name}${format.quotingChar}`;
+};
+
+const escapeParam = (format: Format, index: number, name: string): string => {
+  if (format.params.index === "from-1" || format.params.index === "from-0") {
+    return `${format.params.prefix}${index}`;
+  } else if (format.params.index === "named") {
+    return `${format.params.prefix}${name}`;
+  }
+  return format.params.prefix;
+};
+
+export function parseInsertQuery<TCol, TRow>(query: InsertQueryParams<TCol, TRow>, format: Format): ParsedInsertQuery {
   let columns:   string = "(";
   let values:    string = "(";
   let returning: string | null = null;
@@ -26,17 +45,22 @@ export function parseInsertQuery<TCol, TRow>(query: InsertQueryParams<TCol, TRow
   if (colsCount === 0) throw new Error("No columns provided for the insert statement!");
   if (rowsCount === 0) throw new Error("No rows provided for the insert statement!");
 
-  for (let i = 0; i < colsCount; i++) columns += `"${query.cols[i]}", `;
+  // FIXME:
+  // for (let i = 0; i < colsCount; i++) columns += `"${query.cols[i]}", `;
+  for (let i = 0; i < colsCount; i++) columns += `${escapeName(format, query.cols[i] as string)}, `;
   columns = columns.slice(0, -2);
   columns += ")";
 
-  let paramIndex = 1;
+  // FIXME:
+  let paramIndex = initParamIndex(format);
   for (let i = 0; i < rowsCount; i++) {
     const row = query.rows[i];
     for (let j = 0; j < colsCount; j++) {
       const col = query.cols[j];
-      if (paramsFormat.appendIndex) values += `${paramsFormat.prefix}${paramIndex}, `;
-      else values += `${paramsFormat.prefix}, `;
+      // FIXME:
+      // if (paramsFormat.appendIndex) values += `${paramsFormat.prefix}${paramIndex}, `;
+      // else values += `${paramsFormat.prefix}, `;
+      values += `${escapeParam(format, paramIndex, col as string)}, `
       paramIndex++;
       params.push((row as any)[col]);
     }
@@ -65,7 +89,7 @@ function resolveWhereClause<TCol, TRow>(
   paramIndex: number, params: any[], paramsFormat: ParamsFormat
 ): WhereClauseResult {
   let whereClause: string | null = null;
-  if (typeof WHERE[0] === "object") {
+  if (typeof WHERE[0] === "object" && !Array.isArray(WHERE[0])) {
     whereClause = "";
     const target = WHERE[0];
     const op = WHERE[1] || "=";
@@ -90,7 +114,7 @@ function resolveWhereClause<TCol, TRow>(
         paramIndex++;
         params.push(token[2]);
       } else {
-        whereClause += token;
+        if (WHERE.length - 1 !== i) whereClause += token;
       }
     }
     whereClause = whereClause.slice(0, -1);
